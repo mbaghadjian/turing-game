@@ -40,6 +40,11 @@
   @keyframes blink{50%{opacity:.2}}
   .stat .v.judge{color:var(--judge)} .stat .v.A{color:var(--a)} .stat .v.B{color:var(--b)}
   .stat .sub{font-size:13px;color:var(--muted);margin-top:4px}
+  .stat.obj{border-width:2px}
+  .stat.obj.judge{border-color:var(--amber)} .stat.obj.player{border-color:var(--green)}
+  .stat .ov{font-family:"Orbitron",sans-serif;font-weight:900;font-size:15px;letter-spacing:1px;line-height:1.3}
+  .stat.obj.judge .ov{color:var(--amber)} .stat.obj.player .ov{color:var(--green)}
+  .stat.obj .sub{color:var(--text)}
   .dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#333;margin-right:8px;vertical-align:middle;box-shadow:none}
   .dot.on{background:var(--green);box-shadow:0 0 8px var(--green)}
   .share{font-size:12px;color:var(--text);word-break:break-all;background:var(--bg);border:1px dashed var(--line);padding:8px}
@@ -260,8 +265,8 @@ function renderSelect(status){
     <div class="tabs"><button class="${find ? "on" : ""}" onclick="selMode='find';renderSelect()">Find a match</button><button class="${find ? "" : "on"}" onclick="selMode='invite';renderSelect()">Invite a friend</button></div>
     <p style="text-align:left">${find ? "Pick a role. Every game needs one human and one judge, so pick the opposite of your friend." : "Choose your role, then share the invitation."}</p>
     <div class="roles">
-      <div class="role player ${selRole === "player" ? "on" : ""}" onclick="chooseRole('player')"><div class="rt">Play as human</div><div class="rd">Convince the judge you are human.</div></div>
-      <div class="role judge ${selRole === "judge" ? "on" : ""}" onclick="chooseRole('judge')"><div class="rt">Play as judge</div><div class="rd">Chat with both. Identify the human.</div></div>
+      <div class="role player ${selRole === "player" ? "on" : ""}" onclick="chooseRole('player')"><div class="rt">Play as human</div><div class="rd">An AI will copy your style. Convince the Judge that YOU are the real one.</div></div>
+      <div class="role judge ${selRole === "judge" ? "on" : ""}" onclick="chooseRole('judge')"><div class="rt">Play as judge</div><div class="rd">Interrogate both players. Pick the human to win.</div></div>
     </div>
     <div id="selstatus">${status || ""}</div>
   </div>`);
@@ -349,7 +354,10 @@ function render(){
 
   // sidebar
   const other = me === "judge" ? "player" : "judge";
-  $("#aside").innerHTML = `
+  const objective = me === "judge"
+    ? `<div class="stat obj judge"><div class="k">Your mission</div><div class="ov">FIND THE HUMAN.</div><div class="sub">One player is a person. The other is an AI copying their style. Ask anything. Pick the human to win.</div></div>`
+    : `<div class="stat obj player"><div class="k">Your mission</div><div class="ov">CONVINCE THE JUDGE YOU'RE HUMAN.</div><div class="sub">The other player is an AI mimicking you. Sound like yourself. Call it out. Make the Judge pick you.</div></div>`;
+  $("#aside").innerHTML = objective + `
     <div class="stat"><div class="k">You are</div><div class="v ${me === "judge" ? "judge" : me}">${me === "judge" ? "THE JUDGE" : "PLAYER " + me}</div>${me !== "judge" && state.judgeName ? `<div class="sub">Judge: ${esc(state.judgeName)}</div>` : ""}</div>
     <div class="stat"><div class="k">Clock</div><div class="v big" id="timer">--:--</div><div class="sub">${ph === "live" ? "live interrogation" : ph === "opening" ? "awaiting first exchange" : ph}</div></div>
     <div class="stat"><div class="k">Operators</div>
@@ -357,13 +365,13 @@ function render(){
       <div><span class="dot ${state.playerHere ? "on" : ""}"></span>Player</div>
       <div><span class="dot on"></span>Machine</div></div>
     ${ph === "lobby" ? `<div class="stat"><div class="k">Share with the ${other}</div><div class="share">${location.origin}${location.pathname}?g=${state.game}&role=${other}</div></div>` : ""}`;
-  $("#mobilestat").innerHTML = `<span>${me === "judge" ? "JUDGE" : "PLAYER " + me}</span><b id="timer-m">--:--</b>`;
+  $("#mobilestat").innerHTML = `<span>${me === "judge" ? "JUDGE · FIND THE HUMAN" : "PLAYER " + me + " · PROVE YOU'RE HUMAN"}</span><b id="timer-m">--:--</b>`;
   $("#loghead-r").textContent = "session " + state.game;
 
   // log
   let html = "";
-  if (ph === "opening" && !state.judgeOpened) html += `<div class="sys">${me === "judge" ? "Ask the players anything. Both will answer." : "The Judge is writing the opening question."}</div>`;
-  else if (ph === "opening") html += `<div class="sys">${me === "judge" ? "Both players are answering. Their first messages land together." : "Your first message is held until the other player's is ready, then both drop at once."}</div>`;
+  if (ph === "opening" && !state.judgeOpened) html += `<div class="sys">${me === "judge" ? "Ask both players anything. One is a real person, one is an AI. You have 90 seconds to figure out which is the human." : "The Judge is writing the opening question. Your job: convince them YOU are the human. The other player is an AI that will try to sound like you."}</div>`;
+  else if (ph === "opening") html += `<div class="sys">${me === "judge" ? "Both players are answering. Their first messages land together." : "Your first message is held until the other player's is ready, then both drop at once. Then it's live."}</div>`;
   for (const m of state.messages){
     const mine = m.from === me;
     html += `<div class="line ${m.from} ${mine ? "me" : ""} ${m.queued ? "queued" : ""}"><span class="t">${fmtTime(m.ts)}</span><span class="w">${mine ? "YOU" : label(m.from)}</span><span class="x">${esc(m.text)}</span></div>`;
@@ -389,7 +397,7 @@ function render(){
       const r = state.reveal, youWon = me === "judge" ? r.judgeCorrect : !r.judgeCorrect;
       overlay(`<div class="card">
         <div class="verdict ${youWon ? "win" : "lose"}">${youWon ? "YOU WIN" : "YOU LOSE"}</div>
-        <p style="color:var(--text);font-size:20px">The Judge picked <b>Player ${r.pick}</b>. The machine was <b>Player ${r.ai}</b>. The human was <b>Player ${r.human}</b>.</p>
+        <p style="color:var(--text);font-size:20px">The Judge said <b>Player ${r.pick}</b> was the human. ${r.judgeCorrect ? "Correct." : "Wrong."} The human was <b>Player ${r.human}</b>; <b>Player ${r.ai}</b> was the AI.</p>
         <p>Reasoning: ${r.reason ? esc(r.reason) : "(none given)"}</p>
         <div class="row"><button class="huge" onclick="send({type:'rematch'})">Play again</button><button class="ghost" onclick="location.href='/'">New game</button></div>
         <p style="font-size:14px">Either of you can hit Play again; both screens move to the next round.</p></div>`);
@@ -419,13 +427,15 @@ function render(){
 function submit(){ const inp = $("#inp"); const text = inp.value.trim(); if (!text) return; send({ type: "msg", text }); inp.value = ""; send({ type: "draft", text: "" }); }
 function voteHtml(){
   return `<div class="card">
-    <h2>Which one is the machine?</h2>
+    <div class="eyebrow">VERDICT</div>
+    <h2>Which one is the HUMAN?</h2>
+    <p>Pick the real person. The other one is the AI.</p>
     <div class="selectors">
-      <div class="sel A ${pick === "A" ? "picked" : ""}" onclick="setPick('A')"><div class="big">PLAYER A</div><div class="hint">${pick === "A" ? "selected" : "select"}</div></div>
-      <div class="sel B ${pick === "B" ? "picked" : ""}" onclick="setPick('B')"><div class="big">PLAYER B</div><div class="hint">${pick === "B" ? "selected" : "select"}</div></div>
+      <div class="sel A ${pick === "A" ? "picked" : ""}" onclick="setPick('A')"><div class="big">PLAYER A</div><div class="hint">${pick === "A" ? "A is the human" : "A is the human"}</div></div>
+      <div class="sel B ${pick === "B" ? "picked" : ""}" onclick="setPick('B')"><div class="big">PLAYER B</div><div class="hint">${pick === "B" ? "B is the human" : "B is the human"}</div></div>
     </div>
-    <textarea id="reason" placeholder="What gave it away?"></textarea>
-    <div class="row"><button class="huge amber" id="votebtn" ${pick ? "" : "disabled"} onclick="castVote()">Lock it in</button>${state.phase === "live" ? `<button class="ghost" onclick="votingEarly=false;rendered.overlay='';render()">Keep asking</button>` : ""}</div></div>`;
+    <textarea id="reason" placeholder="Why? What gave the machine away?"></textarea>
+    <div class="row"><button class="huge amber" id="votebtn" ${pick ? "" : "disabled"} onclick="castVote()">${pick ? "Player " + pick + " is the human" : "Pick one"}</button>${state.phase === "live" ? `<button class="ghost" onclick="votingEarly=false;rendered.overlay='';render()">Keep asking</button>` : ""}</div></div>`;
 }
 function setPick(p){ pick = p; const r = $("#reason") ? $("#reason").value : ""; overlay(voteHtml()); $("#reason").value = r; }
 function castVote(){ send({ type: "vote", pick, reason: $("#reason").value }); }

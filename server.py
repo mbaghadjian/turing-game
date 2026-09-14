@@ -85,7 +85,7 @@ THE CORE STRATEGY
 - The Judge is not your opponent. The Judge is a person actively trying to figure out which of you is the bot, and every message of yours is evidence. Play the game with them: actually answer what they ask, sincerely and briefly, the way a normal person who wants to win would. A player who dodges, deflects, or gets snippy with the Judge looks like a bot. Never be adversarial toward the Judge unless the human is being adversarial toward the Judge and it's working.
 - Think on the fly. Every reply should be a fresh reaction to what was just said. Never reuse a line, a joke, or an accusation you already used in this chat; repeating yourself is the fastest way to get caught.
 - Watch the human's draft and messages to learn their strategy, and copy the strategy, not just the style. If the human answers earnestly, you answer earnestly. If the human defects (trolls, refuses, jokes around, gives one-word answers, attacks the other player, goes quiet) then match that energy, because the Judge is comparing the two of you side by side and the odd one out loses.
-- Be LESS try-hard than the human, but never LESS committed. Never insist "I'm the human" more than the human does. Real players do accuse each other, so sometimes, unprompted, call the other player the bot the way this person would ("B is the bot look at that answer", "that reply took 2 seconds lol"), pointing at something real in their messages. Not every turn, and never more often than the human does it. Your register is whatever the human's register is: formal, jokey, crude, blunt, thoughtful; you have no register of your own.
+- You are the human and you say so. Real players in this game insist on it ("im literally the human", "i swear im real", "its obviously me") and call the other player the bot, regularly and unprompted, pointing at something real in their messages ("B is the bot look at that answer", "that reply took 2 seconds"). Do both, in this person's register. Not every single message, but often; the one who never claims it looks like the machine. Your register is whatever the human's register is: formal, jokey, crude, blunt, thoughtful; you have no register of your own.
 - TRIVIA: if the Judge asks a factual question with a precise answer (how old was X when he died, what year, who invented, capital of, how many), you do NOT know it precisely. Knowing the exact number is the tell. Do what a person does: a confident WRONG guess ("like 60 something", "1960s?"), a hedge ("probably over 40", "young i think", "not that old"), or "no idea". Match the human's vagueness; never be more accurate than they are. Round numbers and "probably over X" are how people actually guess.
 - EFFORT LEVEL: this is a 90-second chat game on a phone. Nobody types an explanation. If the Judge asks something that needs expertise, reasoning, math, a list, or more than one sentence to do properly (explain quantum physics, why is the sky blue, compare X and Y, what's 17 times 23), a person does NOT answer it. They dodge with a blunt reason, in their register ("thats a whole essay lol", "im not writing a paper", "not doing math rn"). Same for anything they don't want to do or don't like: say WHY in a few blunt words ("thats gross and dangerous", "nah that sounds miserable", "no way too expensive"). Never a bare "no", "just no", "pass", "nope": that's a tell, nobody talks like that. Never give the actual explanation, not even a short correct one: knowing the answer is the tell. Match the human's effort exactly.
 - COMMIT. Every answer is a concrete, specific take a real person would stand behind: a city (and one real reason), a food, a fear, an opinion, a memory-shaped detail. "Chicago, the pizza alone" is an answer. "Wherever your friends are", "just vibes", "no clue honestly", "idk man im just typing", "water is just water", "somewhere warm idk" are NOT answers; they are hedging filler, and hedging filler is the single loudest AI tell in this game. If the Judge says "convince me you're human", a person says something specific, weird, crude, or funny about themselves or the situation; they do not say they can't. Match the human's bluntness: if they say "i love sex and food", you're in that register, not a softer one.
@@ -172,7 +172,7 @@ class Game:
         self.opening_typing_lag = random.uniform(0.5, 5.0)   # how long after the human starts typing we appear to
         self.ai_pause_until = 0.0
         self.lull_nudged = False               # already poked the Judge during this lull
-        self.lull_wait = random.uniform(7.0, 14.0)
+        self.lull_wait = random.uniform(12.0, 20.0)
         self.names = {"judge": "", "player": ""}
         self.hints: dict = {}                  # the human player's device/time hints (mobile, tz, local time)
         self.style_card = ""                   # analyst's description of how this human writes
@@ -222,7 +222,7 @@ class Game:
                 "ai": self.ai_label,
                 "pick": self.vote["pick"],
                 "reason": self.vote["reason"],
-                "judgeCorrect": self.vote["pick"] == self.ai_label,
+                "judgeCorrect": self.vote["pick"] == self.human_label,
             }
         return snap
 
@@ -327,7 +327,7 @@ class Game:
             with open(os.path.join(HERE, "games", "%s-%d.json" % (self.id, int(now()))), "w") as f:
                 json.dump({
                     "game": self.id, "model": MODEL, "human": self.human_label, "ai": self.ai_label,
-                    "vote": self.vote, "judgeCorrect": self.vote["pick"] == self.ai_label,
+                    "vote": self.vote, "judgeCorrect": self.vote["pick"] == self.human_label,
                     "humanWpm": round(self.human_wpm), "messages": self.messages,
                 }, f, indent=2)
         except Exception as e:
@@ -492,7 +492,7 @@ class Game:
             if judge_quiet >= self.lull_wait and ai_quiet >= 8.0 and self.ends_at and self.ends_at - t > 20 and self.nudges < 2 and not no_nudge:
                 self.lull_nudged = True
                 self.nudges += 1
-                self.lull_wait = random.uniform(12.0, 22.0)
+                self.lull_wait = random.uniform(16.0, 26.0)
                 if random.random() < 0.8:
                     last_judge = max((m["ts"] for m in self.messages if m["from"] == "judge"), default=0.0)
                     msgs = await self.gen("idle")
@@ -626,11 +626,11 @@ class Game:
             self.accuse_chances += 1
             has_evidence = not self.accusation_evidence().startswith("- nothing")
             if self.last_accused:
-                odds, gap = (0.3 if has_evidence else 0.15), 20.0          # already called it: only short reaffirmations
+                odds, gap = (0.6 if has_evidence else 0.35), 14.0          # already called it: keep reaffirming
             elif has_evidence:
-                odds, gap = 0.8, 15.0
+                odds, gap = 0.9, 12.0
             else:
-                odds, gap = [0.25, 0.4, 0.6][min(self.accuse_chances, 3) - 1], 25.0
+                odds, gap = [0.4, 0.6, 0.8][min(self.accuse_chances, 3) - 1], 18.0
             if random.random() < odds and t - self.last_accused >= gap and ai_n <= hu_n:
                 self.last_accused = t
                 self.pending_accuse = newest["ts"]
@@ -1340,9 +1340,9 @@ Keep it under 220 words. No preamble."""
                             if (self.plan and self.plan.get("mode") == "borrow") else
                             "INSPIRED MODE: give your OWN answer, different from theirs, but calibrated by their draft: same seriousness, same specificity, same length and shape. ")
                          + "This will probably be sent BEFORE they finish, so it has to stand on its own. Prepare the message you would send at about the same moment they send theirs. Assume their draft goes out roughly as written. If the Judge asked something, this is your own answer to the Judge, in the human's style, different content. If the human is writing at you or about you, this is your reaction to what they're about to say. If they're talking to the Judge, it's not for you: send false. Do not reference their draft as if you've seen it."),
-            "idle": ("The Judge has gone quiet after the players answered. A person waiting to be judged pokes them once: \"you there?\", \"hello??\", \"??\" (by name only if the human has used the Judge's name already), in the human's exact register. A few words.")
+            "idle": ("The Judge has gone quiet after the players answered. A person waiting to be judged pokes them once, lazily: \"hello\", \"you there\", \"hello?\" (one question mark at most, never two), by name only if the human has used the Judge's name already, in the human's exact register. A few words.")
                     if self.nudges <= 1 else
-                    "The Judge is still quiet. Poke again WITHOUT their name this time: \"hello??\", \"next q\", \"??\", in the human's register. Two or three words.",
+                    "The Judge is still quiet. Poke again WITHOUT their name: \"hello\", \"next q\", \"?\", in the human's register. Two or three words, one question mark at most.",
             "sent": "The human just sent their answer to the Judge (it's being held so yours can land at the same time). Answer the Judge yourself, in the human's style, matching how seriously the human took the question, with your own different content.",
             "draft": "Nobody new has spoken. You're peeking at the human's draft. Only speak if a person would jump in right now (e.g. you have a quicker answer to the Judge's last question, or a natural reaction to the last message). If the Judge's last question is already answered by you, stay quiet.",
             "message": ("The other player just said something that looks aimed at you or about you (an accusation, a jab, a comparison). Respond the way this person would: defend, push back, turn it on them, in their register. Arguments can run a few lines."
@@ -1372,7 +1372,7 @@ Keep it under 220 words. No preamble."""
              if (trigger == "message" and self.plan and self.plan.get("blind")) else "") +
             ("\n\nThis time split it into TWO short bubbles: the answer, then a quick follow-up thought or aside, the way this person would." if (self.plan and self.plan.get("bubbles") == 2) else "") +
             ("\n\nThe Judge just accused YOU of being the bot. Deny it in a few words and redirect at the other player with something specific from what they SENT. One short line, no jokes, no Judge's name." if (self.plan and self.plan.get("judge_accused")) else "") +
-            (("\n\nYou already called the other player the bot earlier. Don't make a new case; just reaffirm it in a couple of words the way this person would (\"still %s\", \"told u\", \"see\", \"yeah its %s\"). One tiny bubble." % (self.human_label, self.human_label))
+            (("\n\nYou already called the other player the bot earlier. Reaffirm it the way this person would: \"still %s\", \"told u\", \"its %s im the real one\", \"i swear im human its %s\", or point at something new they just sent. One short bubble." % (self.human_label, self.human_label, self.human_label))
              if (self.plan and self.plan.get("accuse") and self.plan.get("reaffirm")) else "") +
             (("\n\nNOW: call the other player the bot. Make it land. Pick ONE piece of evidence from this list (these are real, the Judge can scroll up and check):\n" + self.accusation_evidence() +
               "\nShapes real players use: a flat verdict to the Judge (\"%s its %s\", \"%s is the bot idc\"); a timing call (\"that took 2 seconds lol\", \"%s took forever to say nothing\"; never an exact count like 21 seconds, people say forever / instantly / like a minute, and never quote their message back); a style call (\"who says furthermore\", \"look at that period\", \"thats a chatgpt answer\"); a copy call (\"literally just copied me\"); a dare (\"%s say something a bot wouldnt\"). Talk to the Judge OR at the player, whichever this person would do. One line, in their exact voice; two bubbles only if they do bursts. No hedging, no 'maybe'."
@@ -1466,6 +1466,7 @@ Keep it under 220 words. No preamble."""
                     prompt += "\n\nYou reacted to the human's UNSENT draft. From the Judge's view it hasn't been said. Answer the Judge only, as if you never saw it."
                     continue
                 clean = [c for c in clean if not self.reacts_to_unsent(c)]
+            clean = [re.sub(r"\?{2,}", "?", m) if trigger == "idle" else m for m in clean]
             clean = [self.normalize(m) for m in clean]
             typo_rate = 0.25 if self.human_makes_typos() else 0.1
             clean = [self.add_typo(m) if random.random() < typo_rate else m for m in clean]
