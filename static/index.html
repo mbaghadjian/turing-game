@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Turing Game</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@700;900&display=swap');
+  :root{--bg:#020711;--panel:#040d1c;--line:#0f3a5a;--cyan:#38e8ff;--cyan-dim:#1a7f95;--text:#d9f4ff;--muted:#5f8fa6;--amber:#ffc233;--red:#ff3b3b;--green:#39ff88;--white:#ffffff;
+        --judge:#ffc233;--a:#38e8ff;--b:#ff4fd8;--glow:0 0 10px rgba(56,232,255,.5)}
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font:17px/1.4 "Share Tech Mono",ui-monospace,Menlo,monospace}
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.35;
+    background:linear-gradient(rgba(56,232,255,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(56,232,255,.08) 1px,transparent 1px);background-size:60px 60px}
+  body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:50;background:repeating-linear-gradient(0deg,rgba(0,0,0,0) 0 3px,rgba(0,0,0,.12) 3px 4px)}
+  .app{height:100dvh;display:flex;flex-direction:column;position:relative;z-index:1}
+
+  /* ---- DEFCON strip ---- */
+  .defcon{display:flex;align-items:stretch;border-bottom:2px solid var(--line);background:var(--panel)}
+  .defcon .title{font-family:"Orbitron",sans-serif;font-weight:900;font-size:20px;letter-spacing:5px;padding:12px 20px;color:var(--white);text-shadow:var(--glow);display:flex;align-items:center;gap:14px;border-right:2px solid var(--line);white-space:nowrap}
+  .defcon .levels{display:flex;flex:1}
+  .lvl{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:"Orbitron",sans-serif;font-weight:900;font-size:22px;color:#123;opacity:.35;border-right:1px solid var(--line);padding:6px 0;letter-spacing:1px;transition:opacity .3s}
+  .lvl small{font-family:"Share Tech Mono",monospace;font-size:11px;letter-spacing:2px;color:#0b2233}
+  .lvl.on{opacity:1;color:#031;text-shadow:none}
+  .lvl.l5{background:#1e6bff}.lvl.l4{background:#2ecc71}.lvl.l3{background:#ffd23f}.lvl.l2{background:#ff3b3b}.lvl.l1{background:#fff}
+  .lvl.on small{color:#031}
+  .defcon .right{display:flex;align-items:center;gap:12px;padding:0 16px;border-left:2px solid var(--line)}
+  .music{display:flex;align-items:center;gap:6px}
+  .music button{background:transparent;color:var(--muted);border:1px solid var(--line);padding:6px 10px;font:inherit;font-size:13px;cursor:pointer;clip-path:none}
+  .music input[type=range]{width:80px;accent-color:var(--cyan)}
+
+  /* ---- layout ---- */
+  .layout{flex:1;display:grid;grid-template-columns:300px 1fr;min-height:0}
+  aside{border-right:2px solid var(--line);background:var(--panel);padding:18px;display:flex;flex-direction:column;gap:16px;overflow-y:auto}
+  .stat{border:1px solid var(--line);padding:12px 14px}
+  .stat .k{font-size:11px;letter-spacing:3px;color:var(--muted);text-transform:uppercase;margin-bottom:6px}
+  .stat .v{font-family:"Orbitron",sans-serif;font-weight:700;font-size:18px;color:var(--cyan);text-shadow:var(--glow);word-break:break-word}
+  .stat .v.big{font-size:44px;letter-spacing:2px}
+  .stat .v.low{color:var(--red);text-shadow:0 0 12px rgba(255,59,59,.7);animation:blink .5s steps(1) infinite}
+  @keyframes blink{50%{opacity:.2}}
+  .stat .v.judge{color:var(--judge)} .stat .v.A{color:var(--a)} .stat .v.B{color:var(--b)}
+  .stat .sub{font-size:13px;color:var(--muted);margin-top:4px}
+  .dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#333;margin-right:8px;vertical-align:middle;box-shadow:none}
+  .dot.on{background:var(--green);box-shadow:0 0 8px var(--green)}
+  .share{font-size:12px;color:var(--text);word-break:break-all;background:var(--bg);border:1px dashed var(--line);padding:8px}
+
+  section.log{display:flex;flex-direction:column;min-height:0}
+  .loghead{display:flex;justify-content:space-between;padding:10px 20px;border-bottom:1px solid var(--line);font-size:12px;letter-spacing:3px;color:var(--muted);text-transform:uppercase}
+  main{flex:1;overflow-y:auto;padding:14px 20px;display:flex;flex-direction:column;gap:6px}
+  .line{display:grid;grid-template-columns:64px 110px 1fr;gap:12px;align-items:baseline;padding:8px 10px;border-left:3px solid var(--line);background:rgba(4,13,28,.7);font-size:18px}
+  .line .t{color:var(--muted);font-size:13px}
+  .line .w{font-family:"Orbitron",sans-serif;font-weight:700;font-size:12px;letter-spacing:2px;text-transform:uppercase}
+  .line.judge{border-left-color:var(--judge)} .line.judge .w{color:var(--judge)}
+  .line.A{border-left-color:var(--a)} .line.A .w{color:var(--a)}
+  .line.B{border-left-color:var(--b)} .line.B .w{color:var(--b)}
+  .line.me{background:rgba(56,232,255,.06)}
+  .line.queued{opacity:.45;border-left-style:dashed}
+  .line .x{white-space:pre-wrap;word-break:break-word}
+  .sys{color:var(--muted);font-size:14px;padding:10px;text-align:center;letter-spacing:1px}
+  .sys::before{content:">> "}
+
+  footer{display:flex;gap:10px;padding:14px 20px;border-top:2px solid var(--line);background:var(--panel)}
+  footer .prompt{font-family:"Orbitron",sans-serif;color:var(--cyan);font-size:22px;align-self:center}
+  footer input{flex:1;background:var(--bg);color:var(--text);border:2px solid var(--line);padding:16px;font:inherit;font-size:21px;outline:none;caret-color:var(--cyan)}
+  footer input:focus{border-color:var(--cyan);box-shadow:var(--glow)}
+  footer input::placeholder{color:var(--muted)}
+  footer input:disabled{opacity:.5}
+
+  button{font-family:"Orbitron",sans-serif;background:var(--cyan);color:#012;border:0;padding:16px 26px;font-size:16px;font-weight:900;letter-spacing:2px;text-transform:uppercase;cursor:pointer;box-shadow:var(--glow)}
+  button:hover{filter:brightness(1.15)}
+  button.ghost{background:transparent;color:var(--cyan);box-shadow:inset 0 0 0 2px var(--cyan)}
+  button.amber{background:var(--amber);color:#210;box-shadow:0 0 10px rgba(255,194,51,.5)}
+  button:disabled{opacity:.3;cursor:default;box-shadow:none;filter:none}
+  .votelink{background:none;border:0;color:var(--amber);font:inherit;font-size:15px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;padding:0 6px;box-shadow:none;text-decoration:underline;font-family:"Share Tech Mono",monospace}
+
+  /* ---- full screen overlays (home, name, lobby, vote, reveal) ---- */
+  .overlay{position:absolute;inset:0;z-index:20;background:rgba(2,7,17,.94);display:flex;align-items:center;justify-content:center;padding:24px;overflow-y:auto}
+  .overlay[hidden]{display:none}
+  .card{width:min(960px,100%);border:2px solid var(--line);background:var(--panel);padding:36px;display:flex;flex-direction:column;gap:22px;text-align:center;box-shadow:0 0 40px rgba(56,232,255,.12)}
+  .card h2{font-family:"Orbitron",sans-serif;font-weight:900;font-size:40px;letter-spacing:6px;margin:0;color:var(--white);text-shadow:var(--glow);text-transform:uppercase}
+  .card p{margin:0;color:var(--muted);font-size:18px}
+  .selectors{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .sel{border:3px solid var(--line);padding:40px 20px;cursor:pointer;background:var(--bg);display:flex;flex-direction:column;align-items:center;gap:12px;transition:transform .08s,border-color .12s,box-shadow .12s;user-select:none}
+  .sel .big{font-family:"Orbitron",sans-serif;font-weight:900;font-size:46px;letter-spacing:4px}
+  .sel .hint{font-size:13px;letter-spacing:3px;color:var(--muted);text-transform:uppercase}
+  .sel.A{border-color:#0a5566}.sel.A .big{color:var(--a)}
+  .sel.B{border-color:#6a1e5c}.sel.B .big{color:var(--b)}
+  .sel.judge .big{color:var(--judge)} .sel.player .big{color:var(--green)}
+  .sel:hover{transform:translateY(-2px)}
+  .sel.A:hover,.sel.A.picked{border-color:var(--a);box-shadow:0 0 30px rgba(56,232,255,.35)}
+  .sel.B:hover,.sel.B.picked{border-color:var(--b);box-shadow:0 0 30px rgba(255,79,216,.35)}
+  .sel.picked .hint{color:var(--white)}
+  .card textarea{background:var(--bg);color:var(--text);border:2px solid var(--line);padding:14px;font:inherit;font-size:18px;min-height:70px;resize:vertical;width:100%}
+  .card input.name{background:var(--bg);color:var(--text);border:2px solid var(--line);padding:18px;font:inherit;font-size:24px;text-align:center;width:min(420px,100%);outline:none;letter-spacing:2px}
+  .card input.name:focus{border-color:var(--cyan);box-shadow:var(--glow)}
+  .verdict{font-family:"Orbitron",sans-serif;font-weight:900;font-size:56px;letter-spacing:8px;margin:0}
+  .verdict.win{color:var(--green);text-shadow:0 0 20px rgba(57,255,136,.6)} .verdict.lose{color:var(--red);text-shadow:0 0 20px rgba(255,59,59,.6)}
+  .card .row{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+  .card button.huge{font-size:24px;padding:26px 48px;letter-spacing:4px}
+  .landing{width:min(980px,100%);max-height:96dvh;border:2px solid var(--line);background:var(--panel);padding:22px 32px 16px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px;box-shadow:0 0 40px rgba(56,232,255,.10);position:relative;overflow:hidden}
+  .landing .radar{position:absolute;left:50%;top:38%;width:min(70vw,620px);aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;pointer-events:none;
+    background:conic-gradient(from 0deg,rgba(56,232,255,0) 0 300deg,rgba(56,232,255,.18) 340deg,rgba(56,232,255,.45) 360deg);animation:sweep 4s linear infinite;
+    mask:radial-gradient(circle,#000 0 55%,transparent 72%)}
+  .landing .rings{position:absolute;left:50%;top:38%;width:min(70vw,620px);aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;pointer-events:none;
+    background:repeating-radial-gradient(circle,rgba(56,232,255,.16) 0 1px,transparent 1px 18%);mask:radial-gradient(circle,#000 0 58%,transparent 72%)}
+  @keyframes sweep{to{transform:translate(-50%,-50%) rotate(360deg)}}
+  .landing .floor{position:absolute;left:-20%;right:-20%;bottom:0;height:46%;pointer-events:none;
+    background:linear-gradient(rgba(56,232,255,.28) 1px,transparent 1px) 0 0/100% 34px,linear-gradient(90deg,rgba(56,232,255,.18) 1px,transparent 1px) 0 0/60px 100%;
+    transform:perspective(420px) rotateX(62deg);transform-origin:bottom;animation:floor 2.2s linear infinite;mask-image:linear-gradient(to top,#000 40%,transparent)}
+  @keyframes floor{to{background-position:0 34px,0 0}}
+  .landing > *{position:relative;z-index:1}
+  .type{font-size:14px;letter-spacing:4px;color:var(--cyan);min-height:20px;text-transform:uppercase;margin-top:4px}
+  .type::after{content:"█";animation:blink 1s steps(1) infinite;margin-left:2px}
+  .topline{width:100%;display:flex;justify-content:space-between;font-size:12px;letter-spacing:4px;color:var(--muted)}
+  .wordmark{font-family:"Orbitron",sans-serif;font-weight:900;font-size:clamp(40px,8vw,84px);line-height:.95;letter-spacing:4px;margin:8px 0 4px;color:var(--white);text-shadow:0 0 18px rgba(56,232,255,.45),0 0 2px var(--cyan)}
+  .wordmark span{display:block;font-size:.34em;letter-spacing:12px;color:var(--cyan);text-shadow:none;margin-bottom:6px}
+  .tag{font-family:"Orbitron",sans-serif;font-weight:700;letter-spacing:5px;font-size:15px;color:var(--text);margin:4px 0}
+  .tag.dim{color:var(--muted);font-weight:400;font-size:12px;margin-top:6px}
+  button.start{font-size:20px;padding:18px 52px;letter-spacing:5px;margin:10px 0 4px;background:transparent;color:var(--cyan);box-shadow:inset 0 0 0 3px var(--cyan),var(--glow)}
+  button.start:hover{background:rgba(56,232,255,.12)}
+  .art{width:100%;max-width:640px;height:auto;margin-top:2px;max-height:22dvh}
+  .card.select{width:min(680px,100%);max-height:94dvh;overflow-y:auto;position:relative;text-align:left;gap:12px;padding:26px 28px}
+  .card.select h2{font-size:26px!important}
+  .card .x{position:absolute;top:14px;right:14px;background:transparent;color:var(--cyan);box-shadow:inset 0 0 0 2px var(--cyan);padding:8px 14px;font-size:20px}
+  .eyebrow{font-family:"Orbitron",sans-serif;font-size:12px;letter-spacing:5px;color:var(--amber)}
+  .tabs{display:grid;grid-template-columns:1fr 1fr;border:2px solid var(--line)}
+  .tabs button{background:transparent;color:var(--muted);box-shadow:none;padding:12px;font-size:13px;letter-spacing:1px}
+  .tabs button.on{background:var(--cyan);color:#012}
+  .roles{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .role{border:2px solid var(--line);padding:16px 18px;cursor:pointer;background:var(--bg);transition:border-color .12s,box-shadow .12s}
+  .role .rt{font-family:"Orbitron",sans-serif;font-weight:900;font-size:17px;letter-spacing:1px}
+  .role .rd{color:var(--muted);margin-top:6px;font-size:14px}
+  @media (max-width:560px){.roles{grid-template-columns:1fr}}
+  .role.player .rt{color:var(--green)} .role.judge .rt{color:var(--amber)}
+  .role.player:hover,.role.player.on{border-color:var(--green);box-shadow:0 0 22px rgba(57,255,136,.25)}
+  .role.judge:hover,.role.judge.on{border-color:var(--amber);box-shadow:0 0 22px rgba(255,194,51,.25)}
+  .searching{display:flex;align-items:center;gap:12px;color:var(--text);font-size:15px;padding:2px 0}
+  .qstats{font-size:14px;color:var(--muted);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .qstats b{color:var(--cyan)}
+  .spin{width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--cyan);border-radius:50%;animation:spin .8s linear infinite;display:inline-block}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  button.small{padding:10px 16px;font-size:12px}
+  .invite .k{color:var(--muted);margin-bottom:8px}
+  .invite .row{justify-content:flex-start;margin-top:12px}
+  .c4{border:1px solid var(--line);padding:10px 12px;background:var(--bg);margin-top:4px;text-align:left}
+  .c4head{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12px;letter-spacing:3px;color:var(--muted);margin-bottom:10px;flex-wrap:wrap}
+  .c4msg{color:var(--text);letter-spacing:1px;text-transform:none}
+  .c4grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;max-width:250px;margin:0 auto}
+  .cell{aspect-ratio:1;border:1px solid var(--line);border-radius:50%;cursor:pointer;background:rgba(56,232,255,.04)}
+  .cell:hover{border-color:var(--cyan)}
+  .cell.p1{background:var(--cyan);box-shadow:0 0 10px rgba(56,232,255,.6)}
+  .cell.p2{background:var(--b);box-shadow:0 0 10px rgba(255,79,216,.6)}
+  .banner{background:#2a2200;color:var(--amber);border-bottom:2px solid #5a4a00;padding:10px 16px;font-size:15px;text-align:center}
+  @media (max-width:820px){
+    .layout{grid-template-columns:1fr}aside{display:none}
+    .defcon .title{font-size:14px;letter-spacing:3px;padding:10px 12px}.lvl{font-size:16px}.lvl small{display:none}.defcon .right{padding:0 8px}
+    .line{grid-template-columns:52px 80px 1fr;gap:8px;font-size:16px}.card{padding:22px}.card h2{font-size:26px;letter-spacing:3px}
+    .sel{padding:26px 10px}.sel .big{font-size:30px}.verdict{font-size:36px}footer input{font-size:18px}button{padding:14px 18px;font-size:14px}
+    .mobilestat{display:flex!important}
+  }
+  .mobilestat{display:none;gap:12px;padding:8px 14px;border-bottom:1px solid var(--line);font-size:13px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;justify-content:space-between}
+  .mobilestat b{font-family:"Orbitron",sans-serif;color:var(--cyan);font-size:18px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="defcon">
+    <div class="title">THE TURING GAME</div>
+    <div class="levels" id="levels">
+      <div class="lvl l5" data-l="5">5<small>STANDBY</small></div>
+      <div class="lvl l4" data-l="4">4<small>OPENING</small></div>
+      <div class="lvl l3" data-l="3">3<small>LIVE</small></div>
+      <div class="lvl l2" data-l="2">2<small>VERDICT</small></div>
+      <div class="lvl l1" data-l="1">1<small>REVEAL</small></div>
+    </div>
+    <div class="right">
+      <div class="music"><button id="musicbtn" title="Background music">♪</button><input id="musicvol" type="range" min="0" max="1" step="0.02" title="Volume"></div>
+    </div>
+    <audio id="music" src="/static/music.mp3" loop preload="auto"></audio>
+  </div>
+  <div id="banner" class="banner" hidden></div>
+  <div class="mobilestat" id="mobilestat"></div>
+  <div class="layout">
+    <aside id="aside"></aside>
+    <section class="log">
+      <div class="loghead"><span>Comms log</span><span id="loghead-r"></span></div>
+      <main id="main"></main>
+      <footer id="bottom"></footer>
+    </section>
+  </div>
+  <div id="overlay" class="overlay" hidden></div>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const params = new URLSearchParams(location.search);
+const GAME = params.get("g");
+const ROLE = params.get("role");
+let myName = "";
+try { myName = localStorage.getItem("tg_name") || ""; } catch(e){}
+let state = null, ws = null, draftTimer = null, tick = null, pick = null, errorMsg = null, votingEarly = false;
+const rendered = { key: "", bottom: "", overlay: "" };
+
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function label(from){ return from === "judge" ? "Judge" : "Player " + from; }
+function deviceHints(){
+  const ua = navigator.userAgent || "";
+  const mobile = /iPhone|Android|iPad|Mobile/i.test(ua);
+  let tz = ""; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch(e){}
+  const d = new Date();
+  return { mobile, tz, localTime: d.toLocaleTimeString([], {hour: "numeric", minute: "2-digit"}), day: d.toLocaleDateString([], {weekday: "long"}),
+           platform: /iPhone/.test(ua) ? "iPhone" : /Android/.test(ua) ? "Android phone" : /Mac/.test(ua) ? "Mac" : /Windows/.test(ua) ? "Windows PC" : "computer" };
+}
+function setLevel(n){ document.querySelectorAll(".lvl").forEach(el => el.classList.toggle("on", el.dataset.l === String(n))); }
+function overlay(html){ const o = $("#overlay"); if (html === null){ o.hidden = true; o.style.display = "none"; o.innerHTML = ""; return; } o.hidden = false; o.style.display = "flex"; o.innerHTML = html; }
+
+// ---------- home: landing -> player select (find a match / invite a friend) ----------
+const consoleArt = `<svg viewBox="0 0 900 260" class="art" aria-hidden="true">
+  <defs><pattern id="g" width="30" height="30" patternUnits="userSpaceOnUse"><path d="M30 0H0V30" fill="none" stroke="rgba(56,232,255,.12)"/></pattern></defs>
+  <rect x="0" y="150" width="900" height="110" fill="url(#g)"/>
+  <path d="M0 150 L900 150 M450 150 L120 260 M450 150 L780 260 M450 150 L450 260" stroke="rgba(56,232,255,.25)" fill="none"/>
+  <g stroke="#38e8ff" fill="none" stroke-width="2"><rect x="110" y="70" width="150" height="90"/><rect x="125" y="85" width="120" height="55"/><path d="M95 160h180M135 160v20h100v-20"/><circle cx="185" cy="40" r="16"/><path d="M160 70a25 25 0 0 1 50 0"/></g>
+  <g stroke="#ffc233" fill="none" stroke-width="2"><rect x="370" y="60" width="160" height="100"/><rect x="385" y="75" width="130" height="60"/><path d="M355 160h190M405 160v22h90v-22"/><circle cx="450" cy="28" r="18"/><path d="M420 60a30 30 0 0 1 60 0"/><path d="M395 95h20M395 105h35M395 115h25"/></g>
+  <g stroke="#ff4fd8" fill="none" stroke-width="2"><rect x="640" y="70" width="150" height="90"/><rect x="655" y="85" width="120" height="55"/><path d="M625 160h180M665 160v20h100v-20"/><circle cx="715" cy="40" r="16"/><path d="M690 70a25 25 0 0 1 50 0"/></g>
+  <g font-family="Orbitron,sans-serif" font-weight="900" font-size="18" text-anchor="middle"><text x="185" y="215" fill="#38e8ff">A</text><text x="450" y="215" fill="#ffc233">JUDGE</text><text x="715" y="215" fill="#ff4fd8">B</text></g>
+</svg>`;
+let lobbyWs = null, selMode = "find", selRole = null, inviteId = null;
+function renderHome(){
+  setLevel(5);
+  overlay(`<div class="landing">
+    <div class="radar"></div><div class="rings"></div><div class="floor"></div>
+    <div class="topline"><span>HUMAN VS MACHINE</span><span>90 SECOND SHOWDOWN</span></div>
+    <div class="type" id="typeline"></div>
+    <h1 class="wordmark"><span>THE</span>TURING GAME</h1>
+    <p class="tag">ONE HUMAN. ONE AI. NINETY SECONDS.</p>
+    <button class="start" onclick="openSelect()">&#9654;&nbsp; Start game</button>
+    ${consoleArt}
+    <p class="tag dim">REAL PEOPLE? MACHINES? YOU DECIDE.</p>
+  </div>`);
+  typeLine();
+}
+function typeLine(){
+  const lines = ["GREETINGS. SHALL WE PLAY A GAME?", "ONE OF THEM IS NOT A PERSON.", "YOU HAVE NINETY SECONDS."];
+  let li = 0, ci = 0; const el = () => document.getElementById("typeline");
+  function step(){
+    const e = el(); if (!e) return;
+    const t = lines[li];
+    if (ci <= t.length){ e.textContent = t.slice(0, ci++); setTimeout(step, 45 + Math.random() * 40); }
+    else setTimeout(() => { ci = 0; li = (li + 1) % lines.length; step(); }, 2200);
+  }
+  step();
+}
+function openSelect(){ selRole = null; renderSelect(); }
+function renderSelect(status){
+  const find = selMode === "find";
+  overlay(`<div class="card select">
+    <button class="x" onclick="renderHome()">×</button>
+    <div class="eyebrow">PLAYER SELECT</div>
+    <h2 style="text-align:left;font-size:34px">Choose your side</h2>
+    <div class="tabs"><button class="${find ? "on" : ""}" onclick="selMode='find';renderSelect()">Find a match</button><button class="${find ? "" : "on"}" onclick="selMode='invite';renderSelect()">Invite a friend</button></div>
+    <p style="text-align:left">${find ? "Pick a role. Every game needs one human and one judge, so pick the opposite of your friend." : "Choose your role, then share the invitation."}</p>
+    <div class="roles">
+      <div class="role player ${selRole === "player" ? "on" : ""}" onclick="chooseRole('player')"><div class="rt">Play as human</div><div class="rd">Convince the judge you are human.</div></div>
+      <div class="role judge ${selRole === "judge" ? "on" : ""}" onclick="chooseRole('judge')"><div class="rt">Play as judge</div><div class="rd">Chat with both. Identify the human.</div></div>
+    </div>
+    <div id="selstatus">${status || ""}</div>
+  </div>`);
+}
+function chooseRole(role){
+  selRole = role;
+  if (selMode === "find"){
+    renderSelect(`<div class="searching"><span class="spin"></span> Searching for a ${role === "judge" ? "human player" : "judge"}… <button class="ghost small" onclick="cancelSearch()">Cancel</button></div>
+      <div id="qstats" class="qstats"></div><div id="c4host">${c4Html()}</div>`);
+    startSearch(role);
+  } else {
+    if (!inviteId) inviteId = Math.random().toString(36).slice(2, 8);
+    const other = role === "judge" ? "player" : "judge";
+    const link = `${location.origin}${location.pathname}?g=${inviteId}&role=${other}`;
+    renderSelect(`<div class="invite">
+      <div class="k">Send this to your friend (they'll be the ${other}):</div>
+      <div class="share" id="invlink">${link}</div>
+      <div class="row"><button class="ghost" onclick="navigator.clipboard&&navigator.clipboard.writeText('${link}');this.textContent='Copied'">Copy link</button>
+      <button onclick="location.href='?g=${inviteId}&role=${role}'">Enter as ${role}</button></div></div>`);
+  }
+}
+function startSearch(role){
+  cancelSearch(false);
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  lobbyWs = new WebSocket(`${proto}://${location.host}/ws`);
+  lobbyWs.onopen = () => lobbyWs.send(JSON.stringify({ type: "queue", role }));
+  lobbyWs.onmessage = (e) => {
+    const d = JSON.parse(e.data);
+    if (d.type === "matched") { location.href = `?g=${d.game}&role=${d.role}`; return; }
+    if (d.type === "queued" && d.waiting){
+      const el = document.getElementById("qstats"); if (!el) return;
+      const need = role === "judge" ? "player" : "judge";
+      const others = Math.max(0, d.waiting[role] - 1), avail = d.waiting[need];
+      el.innerHTML = `Waiting now: <b>${d.waiting.judge}</b> judge${d.waiting.judge === 1 ? "" : "s"}, <b>${d.waiting.player}</b> human${d.waiting.player === 1 ? "" : "s"}.` +
+        (others > 0 && avail === 0 ? ` Someone else is waiting as ${role === "judge" ? "judge" : "human"} too, and nobody is on the other side. <button class="ghost small" onclick="chooseRole('${need}')">Switch to ${need === "judge" ? "judge" : "human"} and start now</button>` : "");
+    }
+  };
+}
+function cancelSearch(rerender = true){
+  if (lobbyWs){ try { lobbyWs.send(JSON.stringify({ type: "dequeue" })); lobbyWs.close(); } catch(e){} lobbyWs = null; }
+  if (rerender){ selRole = null; renderSelect(); }
+}
+function renderNameGate(){
+  setLevel(5);
+  overlay(`<div class="card">
+    <h2>${ROLE === "judge" ? "Judge" : "Player"}</h2>
+    <p>${ROLE === "judge" ? "First name. The players will talk to you like a person." : "First name. The Judge sees what you type, not this."}</p>
+    <form id="namef" style="display:flex;flex-direction:column;gap:16px;align-items:center">
+      <input class="name" id="namei" autocomplete="given-name" placeholder="FIRST NAME" value="${esc(myName)}">
+      <button type="submit" class="huge">Enter</button>
+    </form></div>`);
+  $("#namef").addEventListener("submit", e => { e.preventDefault(); myName = $("#namei").value.trim().slice(0, 24); if (!myName) return;
+    try { localStorage.setItem("tg_name", myName); } catch(e){} connect(); });
+  $("#namei").focus();
+}
+
+// ---------- socket ----------
+function connect(){
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  ws = new WebSocket(`${proto}://${location.host}/ws`);
+  ws.onopen = () => ws.send(JSON.stringify({ type: "join", game: GAME, role: ROLE, name: myName, hints: deviceHints() }));
+  ws.onmessage = (e) => {
+    const d = JSON.parse(e.data);
+    if (d.type === "error") { errorMsg = d.message; render(); return; }
+    if (d.type === "state") {
+      state = d; state.skew = Date.now()/1000 - d.serverNow;
+      if (d.nextGame) { location.href = `?g=${d.nextGame}&role=${ROLE}`; return; }
+      render();
+    }
+  };
+  ws.onclose = () => setTimeout(connect, 1200);
+}
+function send(obj){ if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); }
+
+// ---------- render ----------
+function fmtTime(ts){ const d = new Date(ts * 1000); return d.toLocaleTimeString([], {minute: "2-digit", second: "2-digit"}); }
+function render(){
+  if (!state) return;
+  const me = state.you, ph = state.phase;
+  const banner = $("#banner"); banner.hidden = !(state.mock || state.nokey);
+  if (state.mock) banner.textContent = "MOCK AI: canned lines (MOCK_AI=1). Restart the server without it.";
+  else if (state.nokey) banner.textContent = "NO API KEY: the bot will stay silent. Put ANTHROPIC_API_KEY in .env and restart.";
+
+  setLevel({lobby: 5, opening: 4, live: 3, voting: 2, reveal: 1}[ph] || 5);
+
+  // sidebar
+  const other = me === "judge" ? "player" : "judge";
+  $("#aside").innerHTML = `
+    <div class="stat"><div class="k">You are</div><div class="v ${me === "judge" ? "judge" : me}">${me === "judge" ? "THE JUDGE" : "PLAYER " + me}</div>${me !== "judge" && state.judgeName ? `<div class="sub">Judge: ${esc(state.judgeName)}</div>` : ""}</div>
+    <div class="stat"><div class="k">Clock</div><div class="v big" id="timer">--:--</div><div class="sub">${ph === "live" ? "live interrogation" : ph === "opening" ? "awaiting first exchange" : ph}</div></div>
+    <div class="stat"><div class="k">Operators</div>
+      <div><span class="dot ${state.judgeHere ? "on" : ""}"></span>Judge</div>
+      <div><span class="dot ${state.playerHere ? "on" : ""}"></span>Player</div>
+      <div><span class="dot on"></span>Machine</div></div>
+    ${ph === "lobby" ? `<div class="stat"><div class="k">Share with the ${other}</div><div class="share">${location.origin}${location.pathname}?g=${state.game}&role=${other}</div></div>` : ""}`;
+  $("#mobilestat").innerHTML = `<span>${me === "judge" ? "JUDGE" : "PLAYER " + me}</span><b id="timer-m">--:--</b>`;
+  $("#loghead-r").textContent = "session " + state.game;
+
+  // log
+  let html = "";
+  if (ph === "opening" && !state.judgeOpened) html += `<div class="sys">${me === "judge" ? "Ask the players anything. Both will answer." : "The Judge is writing the opening question."}</div>`;
+  else if (ph === "opening") html += `<div class="sys">${me === "judge" ? "Both players are answering. Their first messages land together." : "Your first message is held until the other player's is ready, then both drop at once."}</div>`;
+  for (const m of state.messages){
+    const mine = m.from === me;
+    html += `<div class="line ${m.from} ${mine ? "me" : ""} ${m.queued ? "queued" : ""}"><span class="t">${fmtTime(m.ts)}</span><span class="w">${mine ? "YOU" : label(m.from)}</span><span class="x">${esc(m.text)}</span></div>`;
+  }
+  if (ph === "voting" && me !== "judge") html += `<div class="sys">Time. The Judge is deciding…</div>`;
+  const key = ph + "|" + state.messages.map(m => m.id + (m.queued ? "q" : "")).join(",");
+  const main = $("#main");
+  if (rendered.key !== key){ main.innerHTML = html; main.scrollTop = main.scrollHeight; rendered.key = key; }
+
+  // overlays
+  let ov = "none";
+  if (ph === "lobby") ov = "lobby";
+  else if (ph === "reveal") ov = "reveal";
+  else if (me === "judge" && (ph === "voting" || (votingEarly && ph === "live"))) ov = "vote";
+  if (rendered.overlay !== ov){
+    rendered.overlay = ov;
+    if (ov === "lobby") overlay(`<div class="card"><h2>Standby</h2><p>Waiting for the other human to connect.</p>
+      <div class="share">${location.origin}${location.pathname}?g=${state.game}&role=${other}</div>
+      <p style="font-size:14px">${state.judgeHere ? "Judge online." : "Judge offline."} ${state.playerHere ? "Player online." : "Player offline."}</p>
+      <div id="c4host">${c4Html()}</div></div>`);
+    else if (ov === "vote") overlay(voteHtml());
+    else if (ov === "reveal"){
+      const r = state.reveal, youWon = me === "judge" ? r.judgeCorrect : !r.judgeCorrect;
+      overlay(`<div class="card">
+        <div class="verdict ${youWon ? "win" : "lose"}">${youWon ? "YOU WIN" : "YOU LOSE"}</div>
+        <p style="color:var(--text);font-size:20px">The Judge picked <b>Player ${r.pick}</b>. The machine was <b>Player ${r.ai}</b>. The human was <b>Player ${r.human}</b>.</p>
+        <p>Reasoning: ${r.reason ? esc(r.reason) : "(none given)"}</p>
+        <div class="row"><button class="huge" onclick="send({type:'rematch'})">Play again</button><button class="ghost" onclick="location.href='/'">New game</button></div>
+        <p style="font-size:14px">Either of you can hit Play again; both screens move to the next round.</p></div>`);
+    } else overlay(null);
+  }
+
+  // input bar
+  const bottom = $("#bottom");
+  const canType = (ph === "opening" || ph === "live") && (me === "judge" || state.judgeOpened);
+  const mode = ph === "reveal" ? "none" : canType ? "chat" : "wait";
+  if (mode === "chat"){
+    if (rendered.bottom !== mode || !bottom.querySelector("#inp")){
+      bottom.innerHTML = `<span class="prompt">&gt;</span><form id="chatform" style="display:contents"><input id="inp" autocomplete="off" placeholder="${me === "judge" ? "Ask both players anything…" : "Say something human…"}"><button type="submit">Send</button></form>` +
+        (me === "judge" ? `<button class="votelink" id="votenow">Vote now</button>` : "");
+      $("#chatform").addEventListener("submit", e => { e.preventDefault(); submit(); });
+      const inp = $("#inp");
+      if (me !== "judge") inp.addEventListener("input", () => { clearTimeout(draftTimer); draftTimer = setTimeout(() => send({ type: "draft", text: inp.value }), 120); });
+      const vn = $("#votenow"); if (vn) vn.onclick = () => { votingEarly = true; rendered.overlay = ""; render(); };
+      inp.focus();
+    }
+  } else if (mode === "wait"){ if (rendered.bottom !== mode) bottom.innerHTML = `<span class="prompt">&gt;</span><input disabled placeholder="Waiting for the Judge's first question…">`; }
+  else if (rendered.bottom !== mode) bottom.innerHTML = "";
+  rendered.bottom = mode;
+
+  clearInterval(tick); tick = setInterval(updateTimer, 250); updateTimer();
+}
+function submit(){ const inp = $("#inp"); const text = inp.value.trim(); if (!text) return; send({ type: "msg", text }); inp.value = ""; send({ type: "draft", text: "" }); }
+function voteHtml(){
+  return `<div class="card">
+    <h2>Which one is the machine?</h2>
+    <div class="selectors">
+      <div class="sel A ${pick === "A" ? "picked" : ""}" onclick="setPick('A')"><div class="big">PLAYER A</div><div class="hint">${pick === "A" ? "selected" : "select"}</div></div>
+      <div class="sel B ${pick === "B" ? "picked" : ""}" onclick="setPick('B')"><div class="big">PLAYER B</div><div class="hint">${pick === "B" ? "selected" : "select"}</div></div>
+    </div>
+    <textarea id="reason" placeholder="What gave it away?"></textarea>
+    <div class="row"><button class="huge amber" id="votebtn" ${pick ? "" : "disabled"} onclick="castVote()">Lock it in</button>${state.phase === "live" ? `<button class="ghost" onclick="votingEarly=false;rendered.overlay='';render()">Keep asking</button>` : ""}</div></div>`;
+}
+function setPick(p){ pick = p; const r = $("#reason") ? $("#reason").value : ""; overlay(voteHtml()); $("#reason").value = r; }
+function castVote(){ send({ type: "vote", pick, reason: $("#reason").value }); }
+function updateTimer(){
+  if (!state) return;
+  let txt = "--:--", low = false;
+  if (state.phase === "opening") txt = `${Math.floor(state.seconds/60)}:${String(state.seconds%60).padStart(2,"0")}`;
+  else if (state.phase === "live" && state.endsAt){
+    const left = Math.max(0, state.endsAt - (Date.now()/1000 - state.skew));
+    txt = `${Math.floor(left/60)}:${String(Math.floor(left%60)).padStart(2,"0")}`; low = left < 20;
+  }
+  for (const id of ["#timer", "#timer-m"]){ const el = $(id); if (el){ el.textContent = txt; el.classList.toggle("low", low); } }
+}
+
+
+// ---------- Connect 4 for the wait ----------
+const C4 = { rows: 6, cols: 7, board: null, turn: 1, over: false, msg: "" };
+function c4Reset(){ C4.board = Array.from({length: C4.rows}, () => Array(C4.cols).fill(0)); C4.turn = 1; C4.over = false; C4.msg = "your move"; }
+function c4Drop(b, col, who){ for (let r = C4.rows - 1; r >= 0; r--) if (b[r][col] === 0){ b[r][col] = who; return r; } return -1; }
+function c4Win(b, who){
+  const R = C4.rows, Cc = C4.cols;
+  for (let r = 0; r < R; r++) for (let c = 0; c < Cc; c++){
+    if (b[r][c] !== who) continue;
+    for (const [dr, dc] of [[0,1],[1,0],[1,1],[1,-1]]){
+      let k = 1; while (k < 4){ const rr = r + dr*k, cc = c + dc*k; if (rr < 0 || rr >= R || cc < 0 || cc >= Cc || b[rr][cc] !== who) break; k++; }
+      if (k === 4) return true;
+    }
+  }
+  return false;
+}
+function c4Score(b, who){
+  // simple heuristic: count open 3s and 2s, centre preference
+  let s = 0; const opp = 3 - who;
+  const lines = [];
+  for (let r = 0; r < C4.rows; r++) for (let c = 0; c < C4.cols; c++) for (const [dr, dc] of [[0,1],[1,0],[1,1],[1,-1]]){
+    const cells = []; for (let k = 0; k < 4; k++){ const rr = r + dr*k, cc = c + dc*k; if (rr < 0 || rr >= C4.rows || cc < 0 || cc >= C4.cols) break; cells.push(b[rr][cc]); }
+    if (cells.length === 4) lines.push(cells);
+  }
+  for (const l of lines){
+    const me = l.filter(x => x === who).length, th = l.filter(x => x === opp).length, e = l.filter(x => x === 0).length;
+    if (me === 3 && e === 1) s += 50; else if (me === 2 && e === 2) s += 5;
+    if (th === 3 && e === 1) s -= 60; else if (th === 2 && e === 2) s -= 6;
+  }
+  for (let r = 0; r < C4.rows; r++) if (b[r][3] === who) s += 3;
+  return s;
+}
+function c4Best(){
+  const b = C4.board; let best = -1, bestV = -Infinity;
+  const cols = [3,2,4,1,5,0,6].filter(c => b[0][c] === 0);
+  for (const c of cols){
+    const nb = b.map(r => r.slice()); c4Drop(nb, c, 2);
+    let v;
+    if (c4Win(nb, 2)) v = 100000;
+    else {
+      // one-ply lookahead: don't hand the human a win
+      v = c4Score(nb, 2);
+      for (const c2 of [3,2,4,1,5,0,6].filter(x => nb[0][x] === 0)){ const nb2 = nb.map(r => r.slice()); c4Drop(nb2, c2, 1); if (c4Win(nb2, 1)){ v -= 50000; break; } }
+    }
+    if (v > bestV){ bestV = v; best = c; }
+  }
+  return best;
+}
+function c4Play(col){
+  if (C4.over || C4.turn !== 1) return;
+  if (c4Drop(C4.board, col, 1) < 0) return;
+  if (c4Win(C4.board, 1)){ C4.over = true; C4.msg = "you win. the machine is not pleased"; c4Paint(); return; }
+  if (C4.board[0].every(x => x !== 0)){ C4.over = true; C4.msg = "draw"; c4Paint(); return; }
+  C4.turn = 2; C4.msg = "machine thinking…"; c4Paint();
+  setTimeout(() => {
+    const c = c4Best(); if (c >= 0) c4Drop(C4.board, c, 2);
+    if (c4Win(C4.board, 2)){ C4.over = true; C4.msg = "the machine wins this one"; }
+    else if (C4.board[0].every(x => x !== 0)){ C4.over = true; C4.msg = "draw"; }
+    else { C4.turn = 1; C4.msg = "your move"; }
+    c4Paint();
+  }, 350 + Math.random() * 400);
+}
+function c4Html(){
+  if (!C4.board) c4Reset();
+  let h = `<div class="c4"><div class="c4head"><span>CONNECT 4 · while you wait</span><span class="c4msg">${C4.msg}</span><button class="ghost small" onclick="c4Reset();c4Paint()">Reset</button></div><div class="c4grid">`;
+  for (let r = 0; r < C4.rows; r++) for (let c = 0; c < C4.cols; c++) h += `<div class="cell p${C4.board[r][c]}" onclick="c4Play(${c})"></div>`;
+  return h + `</div></div>`;
+}
+function c4Paint(){ const el = document.getElementById("c4host"); if (el) el.innerHTML = c4Html(); }
+
+// ---------- background music ----------
+(function(){
+  const audio = $("#music"), btn = $("#musicbtn"), vol = $("#musicvol");
+  let v = 0.35; try { v = parseFloat(localStorage.getItem("tg_vol") ?? "0.35"); } catch(e){}
+  audio.volume = v; vol.value = v;
+  const paint = () => { btn.textContent = audio.paused ? "♪" : "♪ ⏸"; };
+  vol.addEventListener("input", () => { audio.volume = vol.value; try { localStorage.setItem("tg_vol", vol.value); } catch(e){} });
+  btn.addEventListener("click", () => { audio.paused ? audio.play().catch(()=>{}) : audio.pause(); paint(); });
+  audio.addEventListener("play", paint); audio.addEventListener("pause", paint);
+  const kick = () => { if (audio.paused) audio.play().catch(()=>{}); document.removeEventListener("pointerdown", kick); document.removeEventListener("keydown", kick); };
+  document.addEventListener("pointerdown", kick); document.addEventListener("keydown", kick);
+  paint();
+})();
+
+if (GAME && (ROLE === "judge" || ROLE === "player")) renderNameGate(); else renderHome();
+</script>
+</body>
+</html>
