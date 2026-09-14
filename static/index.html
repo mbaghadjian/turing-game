@@ -41,7 +41,11 @@
   .stat .v.judge{color:var(--judge)} .stat .v.A{color:var(--a)} .stat .v.B{color:var(--b)}
   .stat .sub{font-size:13px;color:var(--muted);margin-top:4px}
   .stat.obj{border-width:2px}
-  .stat.obj.judge{border-color:var(--amber)} .stat.obj.player{border-color:var(--green)}
+  .stat.obj.judge{border-color:var(--amber)} .stat.obj.player{border-color:var(--green)} .stat.obj.spec{border-color:var(--cyan)}
+  .stat.obj.spec .ov{color:var(--cyan)}
+  .guess{display:flex;gap:8px;margin-top:10px}
+  .guess button{flex:1;padding:10px 6px;font-size:11px}
+  .guess button.on{background:var(--cyan);color:#012}
   .stat .ov{font-family:"Orbitron",sans-serif;font-weight:900;font-size:15px;letter-spacing:1px;line-height:1.3}
   .stat.obj.judge .ov{color:var(--amber)} .stat.obj.player .ov{color:var(--green)}
   .stat.obj .sub{color:var(--text)}
@@ -124,6 +128,18 @@
   button.start{font-size:20px;padding:18px 52px;letter-spacing:5px;margin:10px 0 4px;background:transparent;color:var(--cyan);box-shadow:inset 0 0 0 3px var(--cyan),var(--glow)}
   button.start:hover{background:rgba(56,232,255,.12)}
   .art{width:100%;max-width:640px;height:auto;margin-top:2px;max-height:22dvh}
+  .live{width:min(640px,100%);border:1px solid var(--line);background:rgba(2,7,17,.6);padding:10px 12px;text-align:left}
+  .livehead{font-size:11px;letter-spacing:4px;color:var(--red);display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .ldot{width:8px;height:8px;border-radius:50%;background:var(--red);box-shadow:0 0 8px var(--red);animation:blink 1.2s steps(1) infinite}
+  .livelist{display:flex;flex-direction:column;gap:6px;max-height:20dvh;overflow-y:auto}
+  .dimtxt{color:var(--muted);font-size:13px}
+  .livegame{display:grid;grid-template-columns:90px 80px 1fr 70px;gap:10px;align-items:center;text-decoration:none;color:var(--text);border:1px solid var(--line);padding:8px 10px;font-size:13px;background:var(--panel)}
+  .livegame:hover{border-color:var(--cyan)}
+  .lg-phase{font-family:"Orbitron",sans-serif;font-size:10px;letter-spacing:2px;font-weight:700}
+  .lg-phase.live{color:var(--amber)} .lg-phase.opening{color:var(--green)} .lg-phase.voting{color:var(--red)} .lg-phase.reveal{color:var(--muted)}
+  .lg-id{color:var(--muted)}
+  .lg-meta{color:var(--dim)}
+  .lg-cta{font-family:"Orbitron",sans-serif;font-size:11px;letter-spacing:2px;color:var(--cyan);text-align:right}
   .card.select{width:min(680px,100%);max-height:94dvh;overflow-y:auto;position:relative;text-align:left;gap:12px;padding:26px 28px}
   .card.select h2{font-size:26px!important}
   .card .x{position:absolute;top:14px;right:14px;background:transparent;color:var(--cyan);box-shadow:inset 0 0 0 2px var(--cyan);padding:8px 14px;font-size:20px}
@@ -239,10 +255,29 @@ function renderHome(){
     <h1 class="wordmark"><span>THE</span>TURING GAME</h1>
     <p class="tag">ONE HUMAN. ONE AI. NINETY SECONDS.</p>
     <button class="start" onclick="openSelect()">&#9654;&nbsp; Start game</button>
+    <div class="live" id="live"><div class="livehead"><span class="ldot"></span> LIVE NOW</div><div class="livelist" id="livelist"><span class="dimtxt">No games in progress. Start one.</span></div></div>
     ${consoleArt}
     <p class="tag dim">REAL PEOPLE? MACHINES? YOU DECIDE.</p>
   </div>`);
   typeLine();
+  pollLive();
+}
+let liveTimer = null;
+async function pollLive(){
+  clearInterval(liveTimer);
+  const tick = async () => {
+    const el = document.getElementById("livelist"); if (!el){ clearInterval(liveTimer); return; }
+    try {
+      const r = await fetch("/api/live", {cache: "no-store"}); const d = await r.json();
+      if (!d.games.length){ el.innerHTML = `<span class="dimtxt">No games in progress. Start one.</span>`; return; }
+      el.innerHTML = d.games.map(g => `<a class="livegame" href="?g=${g.game}&role=spectator">
+        <span class="lg-phase ${g.phase}">${g.phase === "reveal" ? "REVEALED" : g.phase === "voting" ? "VERDICT" : g.phase.toUpperCase()}</span>
+        <span class="lg-id">#${g.game}</span>
+        <span class="lg-meta">${g.messages} msgs${g.secondsLeft != null && g.phase === "live" ? " · " + g.secondsLeft + "s left" : ""}${g.spectators ? " · " + g.spectators + " watching" : ""}</span>
+        <span class="lg-cta">WATCH</span></a>`).join("");
+    } catch(e){}
+  };
+  tick(); liveTimer = setInterval(tick, 3000);
 }
 function typeLine(){
   const lines = ["GREETINGS. SHALL WE PLAY A GAME?", "ONE OF THEM IS NOT A PERSON.", "YOU HAVE NINETY SECONDS."];
@@ -327,10 +362,10 @@ function renderNameGate(){
 function connect(){
   const proto = location.protocol === "https:" ? "wss" : "ws";
   ws = new WebSocket(`${proto}://${location.host}/ws`);
-  ws.onopen = () => ws.send(JSON.stringify({ type: "join", game: GAME, role: ROLE, name: myName, hints: deviceHints() }));
+  ws.onopen = () => ws.send(JSON.stringify(ROLE === "spectator" ? { type: "join", game: GAME, role: "spectator" } : { type: "join", game: GAME, role: ROLE, name: myName, hints: deviceHints() }));
   ws.onmessage = (e) => {
     const d = JSON.parse(e.data);
-    if (d.type === "error") { errorMsg = d.message; render(); return; }
+    if (d.type === "error") { overlay(`<div class="card"><h2>Gone</h2><p>${esc(d.message)}</p><div class="row"><button onclick="location.href='/'">Back to lobby</button></div></div>`); return; }
     if (d.type === "state") {
       state = d; state.skew = Date.now()/1000 - d.serverNow;
       if (d.nextGame) { location.href = `?g=${d.nextGame}&role=${ROLE}`; return; }
@@ -354,23 +389,27 @@ function render(){
 
   // sidebar
   const other = me === "judge" ? "player" : "judge";
-  const objective = me === "judge"
+  const objective = me === "spectator"
+    ? `<div class="stat obj spec"><div class="k">Spectating</div><div class="ov">WHICH ONE IS THE HUMAN?</div><div class="sub">Watch the interrogation and lock in your own guess. You'll see if you were right at the reveal.</div>
+       <div class="guess"><button class="ghost small ${myGuess === "A" ? "on" : ""}" onclick="myGuess='A';render()">A is human</button><button class="ghost small ${myGuess === "B" ? "on" : ""}" onclick="myGuess='B';render()">B is human</button></div></div>`
+    : me === "judge"
     ? `<div class="stat obj judge"><div class="k">Your mission</div><div class="ov">FIND THE HUMAN.</div><div class="sub">One player is a person. The other is an AI copying their style. Ask anything. Pick the human to win.</div></div>`
     : `<div class="stat obj player"><div class="k">Your mission</div><div class="ov">CONVINCE THE JUDGE YOU'RE HUMAN.</div><div class="sub">The other player is an AI mimicking you. Sound like yourself. Call it out. Make the Judge pick you.</div></div>`;
   $("#aside").innerHTML = objective + `
-    <div class="stat"><div class="k">You are</div><div class="v ${me === "judge" ? "judge" : me}">${me === "judge" ? "THE JUDGE" : "PLAYER " + me}</div>${me !== "judge" && state.judgeName ? `<div class="sub">Judge: ${esc(state.judgeName)}</div>` : ""}</div>
+    <div class="stat"><div class="k">You are</div><div class="v ${me === "judge" ? "judge" : me === "spectator" ? "" : me}">${me === "judge" ? "THE JUDGE" : me === "spectator" ? "WATCHING" : "PLAYER " + me}</div>${me !== "judge" && state.judgeName ? `<div class="sub">Judge: ${esc(state.judgeName)}</div>` : ""}</div>
     <div class="stat"><div class="k">Clock</div><div class="v big" id="timer">--:--</div><div class="sub">${ph === "live" ? "live interrogation" : ph === "opening" ? "awaiting first exchange" : ph}</div></div>
     <div class="stat"><div class="k">Operators</div>
       <div><span class="dot ${state.judgeHere ? "on" : ""}"></span>Judge</div>
       <div><span class="dot ${state.playerHere ? "on" : ""}"></span>Player</div>
-      <div><span class="dot on"></span>Machine</div></div>
+      <div><span class="dot on"></span>Machine</div>${state.spectators ? `<div class="sub">${state.spectators} watching</div>` : ""}</div>
     ${ph === "lobby" ? `<div class="stat"><div class="k">Share with the ${other}</div><div class="share">${location.origin}${location.pathname}?g=${state.game}&role=${other}</div></div>` : ""}`;
-  $("#mobilestat").innerHTML = `<span>${me === "judge" ? "JUDGE · FIND THE HUMAN" : "PLAYER " + me + " · PROVE YOU'RE HUMAN"}</span><b id="timer-m">--:--</b>`;
+  $("#mobilestat").innerHTML = `<span>${me === "judge" ? "JUDGE · FIND THE HUMAN" : me === "spectator" ? "SPECTATING" : "PLAYER " + me + " · PROVE YOU'RE HUMAN"}</span><b id="timer-m">--:--</b>`;
   $("#loghead-r").textContent = "session " + state.game;
 
   // log
   let html = "";
-  if (ph === "opening" && !state.judgeOpened) html += `<div class="sys">${me === "judge" ? "Ask both players anything. One is a real person, one is an AI. You have 90 seconds to figure out which is the human." : "The Judge is writing the opening question. Your job: convince them YOU are the human. The other player is an AI that will try to sound like you."}</div>`;
+  if (me === "spectator" && ph !== "reveal") html += `<div class="sys">You're watching live. One of these players is an AI copying the other's style.</div>`;
+  else if (ph === "opening" && !state.judgeOpened) html += `<div class="sys">${me === "judge" ? "Ask both players anything. One is a real person, one is an AI. You have 90 seconds to figure out which is the human." : "The Judge is writing the opening question. Your job: convince them YOU are the human. The other player is an AI that will try to sound like you."}</div>`;
   else if (ph === "opening") html += `<div class="sys">${me === "judge" ? "Both players are answering. Their first messages land together." : "Your first message is held until the other player's is ready, then both drop at once. Then it's live."}</div>`;
   for (const m of state.messages){
     const mine = m.from === me;
@@ -388,25 +427,28 @@ function render(){
   else if (me === "judge" && (ph === "voting" || (votingEarly && ph === "live"))) ov = "vote";
   if (rendered.overlay !== ov){
     rendered.overlay = ov;
-    if (ov === "lobby") overlay(`<div class="card"><h2>Standby</h2><p>Waiting for the other human to connect.</p>
-      <div class="share">${location.origin}${location.pathname}?g=${state.game}&role=${other}</div>
+    if (ov === "lobby") overlay(`<div class="card"><h2>Standby</h2><p>${me === "spectator" ? "This game hasn't started yet. Hang tight." : "Waiting for the other human to connect."}</p>
+      ${me === "spectator" ? "" : `<div class="share">${location.origin}${location.pathname}?g=${state.game}&role=${other}</div>`}
       <p style="font-size:14px">${state.judgeHere ? "Judge online." : "Judge offline."} ${state.playerHere ? "Player online." : "Player offline."}</p>
       <div id="c4host">${c4Html()}</div></div>`);
     else if (ov === "vote") overlay(voteHtml());
     else if (ov === "reveal"){
-      const r = state.reveal, youWon = me === "judge" ? r.judgeCorrect : !r.judgeCorrect;
+      const r = state.reveal, youWon = me === "judge" ? r.judgeCorrect : me === "spectator" ? (myGuess === r.human) : !r.judgeCorrect;
+      const verdictTxt = me === "spectator" ? (myGuess ? (youWon ? "YOU CALLED IT" : "FOOLED YOU TOO") : "REVEAL") : (youWon ? "YOU WIN" : "YOU LOSE");
       overlay(`<div class="card">
-        <div class="verdict ${youWon ? "win" : "lose"}">${youWon ? "YOU WIN" : "YOU LOSE"}</div>
+        <div class="verdict ${youWon ? "win" : "lose"}">${verdictTxt}</div>
         <p style="color:var(--text);font-size:20px">The Judge said <b>Player ${r.pick}</b> was the human. ${r.judgeCorrect ? "Correct." : "Wrong."} The human was <b>Player ${r.human}</b>; <b>Player ${r.ai}</b> was the AI.</p>
         <p>Reasoning: ${r.reason ? esc(r.reason) : "(none given)"}</p>
-        <div class="row"><button class="huge" onclick="send({type:'rematch'})">Play again</button><button class="ghost" onclick="location.href='/'">New game</button></div>
-        <p style="font-size:14px">Either of you can hit Play again; both screens move to the next round.</p></div>`);
+        ${me === "spectator"
+          ? `<div class="row"><button class="huge" onclick="location.href='/'">Back to lobby</button></div>`
+          : `<div class="row"><button class="huge" onclick="send({type:'rematch'})">Play again</button><button class="ghost" onclick="location.href='/'">New game</button></div>
+        <p style="font-size:14px">Either of you can hit Play again; both screens move to the next round.</p>`}</div>`);
     } else overlay(null);
   }
 
   // input bar
   const bottom = $("#bottom");
-  const canType = (ph === "opening" || ph === "live") && (me === "judge" || state.judgeOpened);
+  const canType = me !== "spectator" && (ph === "opening" || ph === "live") && (me === "judge" || state.judgeOpened);
   const mode = ph === "reveal" ? "none" : canType ? "chat" : "wait";
   if (mode === "chat"){
     if (rendered.bottom !== mode || !bottom.querySelector("#inp")){
@@ -418,7 +460,7 @@ function render(){
       const vn = $("#votenow"); if (vn) vn.onclick = () => { votingEarly = true; rendered.overlay = ""; render(); };
       inp.focus();
     }
-  } else if (mode === "wait"){ if (rendered.bottom !== mode) bottom.innerHTML = `<span class="prompt">&gt;</span><input disabled placeholder="Waiting for the Judge's first question…">`; }
+  } else if (mode === "wait"){ if (rendered.bottom !== mode) bottom.innerHTML = `<span class="prompt">&gt;</span><input disabled placeholder="${me === "spectator" ? "Spectating — you can't type here" : "Waiting for the Judge's first question…"}">`; }
   else if (rendered.bottom !== mode) bottom.innerHTML = "";
   rendered.bottom = mode;
 
@@ -534,7 +576,8 @@ function c4Paint(){ const el = document.getElementById("c4host"); if (el) el.inn
   paint();
 })();
 
-if (GAME && (ROLE === "judge" || ROLE === "player")) renderNameGate(); else renderHome();
+let myGuess = null;
+if (GAME && ROLE === "spectator") connect(); else if (GAME && (ROLE === "judge" || ROLE === "player")) renderNameGate(); else renderHome();
 </script>
 </body>
 </html>

@@ -64,6 +64,20 @@ app = FastAPI()
 app.mount("/static", StaticFiles(directory=os.path.join(HERE, "static")), name="static")
 
 
+@app.get("/api/live")
+async def live_games():
+    """Games worth watching right now: in progress, or revealed in the last minute."""
+    t = now()
+    out = []
+    for gid, g in games.items():
+        if g.phase in ("opening", "live", "voting") or (g.phase == "reveal" and g.vote and t - g.created < 600 and t - max((m["ts"] for m in g.messages), default=g.created) < 60):
+            out.append({"game": gid, "phase": g.phase, "messages": len(g.messages), "spectators": len(g.spectators),
+                        "secondsLeft": int(max(0, g.ends_at - t)) if g.ends_at else None,
+                        "judge": g.names["judge"][:1] + "." if g.names["judge"] else "", "started": int(t - g.created)})
+    out.sort(key=lambda x: (x["phase"] == "reveal", -x["messages"]))
+    return {"games": out[:12]}
+
+
 @app.get("/")
 async def index():
     return FileResponse(os.path.join(HERE, "static", "index.html"), headers={"Cache-Control": "no-store"})
@@ -186,6 +200,8 @@ class Game:
         self.ends_at: Optional[float] = None
         self.vote: Optional[dict] = None
         self.next_game: Optional[str] = None
+        self.spectators: List[WebSocket] = []
+        self.created = now()
         self.task: Optional[asyncio.Task] = None
 
     # -- views ------------------------------------------------------------
@@ -203,7 +219,8 @@ class Game:
             "game": self.id,
             "phase": self.phase,
             "role": role,
-            "you": self.human_label if role == "player" else "judge",
+            "you": self.human_label if role == "player" else ("spectator" if role == "spectator" else "judge"),
+            "spectators": len(self.spectators),
             "judgeHere": self.sockets["judge"] is not None,
             "playerHere": self.sockets["player"] is not None,
             "judgeOpened": self.judge_opened,
@@ -236,6 +253,13 @@ class Game:
                 await ws.send_text(json.dumps(self.snapshot(role)))
             except Exception:
                 pass
+        if self.spectators:
+            payload = json.dumps(self.snapshot("spectator"))
+            for ws in list(self.spectators):
+                try:
+                    await ws.send_text(payload)
+                except Exception:
+                    self.spectators.remove(ws)
 
     # -- inbound events -----------------------------------------------------
     async def on_join(self, role: str, ws: WebSocket, name: str = "", hints: Optional[dict] = None):
@@ -1602,6 +1626,17 @@ async def ws_endpoint(ws: WebSocket):
         while True:
             data = json.loads(await ws.receive_text())
             kind = data.get("type")
+            if kind == "join" and data.get("role") == "spectator":
+                gid = re.sub(r"[^a-zA-Z0-9]", "", str(data.get("game", "")))[:16]
+                if gid in games:
+                    game = games[gid]
+                    role = "spectator"
+                    game.spectators.append(ws)
+                    await ws.send_text(json.dumps(game.snapshot("spectator")))
+                    await game.broadcast()
+                else:
+                    await ws.send_text(json.dumps({"type": "error", "message": "That game is over or never existed."}))
+                continue
             if kind == "join":
                 gid = re.sub(r"[^a-zA-Z0-9]", "", str(data.get("game", "")))[:16]
                 r = data.get("role")
@@ -1630,7 +1665,7 @@ async def ws_endpoint(ws: WebSocket):
                     if ws in v:
                         v.remove(ws)
                 await notify_queue()
-            elif game is None:
+            elif game is None or role == "spectator":
                 continue
             elif kind == "draft" and role == "player":
                 await game.on_draft(str(data.get("text", "")))
@@ -1649,7 +1684,11 @@ async def ws_endpoint(ws: WebSocket):
         for v in queue.values():
             if ws in v:
                 v.remove(ws)
-        if game and role:
+        if game and role == "spectator":
+            if ws in game.spectators:
+                game.spectators.remove(ws)
+            await game.broadcast()
+        elif game and role:
             await game.on_leave(role, ws)
 
 
