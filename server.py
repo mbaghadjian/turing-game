@@ -1,3 +1,4 @@
+# Demo edit: one-line comment added to showcase the feature.
 """The Turing Game - one group chat, a Judge, a human Player, and an AI Player.
 
 Run:  ANTHROPIC_API_KEY=... python3 server.py
