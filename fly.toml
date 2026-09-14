@@ -1,4 +1,4 @@
-app = "turing-game"
+app = "turing-game-c6f0"
 primary_region = "sjc"
 
 [build]

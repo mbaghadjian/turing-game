@@ -15,7 +15,7 @@ Open http://localhost:8000 (or your LAN IP for friends on the same Wi-Fi).
 ## Deploy (Fly)
 
 - **Automatic:** every push to `main` deploys via GitHub Actions. One-time setup: add a Fly deploy token as the repo secret `FLY_API_TOKEN`, and set the app secrets on Fly:
-  `flyctl secrets set ANTHROPIC_API_KEY=... ANTHROPIC_WORKSPACE_ID=... -a turing-game`
+  `flyctl secrets set ANTHROPIC_API_KEY=... ANTHROPIC_WORKSPACE_ID=... -a turing-game-c6f0`
 - **Manual:** `./deploy.sh`
 
 ## Env vars
